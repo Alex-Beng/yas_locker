@@ -190,6 +190,7 @@ impl YasScanner {
     fn get_color(&self) -> Color {
         let flag_x = self.info.flag_x as i32 + self.info.left;
         let flag_y = self.info.flag_y as i32 + self.info.top;
+        // println!("cao {:?}, {:?}", flag_x, flag_y);
         let color = capture::get_color(flag_x as u32, flag_y as u32);
 
         color
@@ -200,7 +201,7 @@ impl YasScanner {
         if let 0 = count {
             let info = &self.info;
             let raw_after_pp = self.info.art_count_position.capture_relative(info).unwrap();
-            // raw_after_pp.to_gray_image().save("count.png");
+            raw_after_pp.to_gray_image().save("count.png");
             let s = self.model.inference_string(&raw_after_pp);
             info!("raw count string: {}", s);
             if s.starts_with("圣遗物") {
@@ -231,9 +232,10 @@ impl YasScanner {
 
             self.enigo.mouse_scroll_y(-5);
             utils::sleep(self.config.scroll_stop);
+            // utils::sleep(2000);
             count += 1;
             let color: Color = self.get_color();
-            // println!("{:?}", color);
+            // println!("{:?}, {:?}", color, self.initial_color);
             if state == 0 && !color.is_same(&self.initial_color) {
                 state = 1;
             } else if state == 1 && self.initial_color.is_same(&color) {
@@ -381,6 +383,24 @@ impl YasScanner {
 
         star
     }
+    
+    fn get_lock(&self) -> u32 {
+        let color = capture::get_color(
+            (self.info.lock_x as i32 + self.info.left) as u32,
+            (self.info.lock_y as i32 + self.info.top) as u32
+        );
+        
+        let color_locked = Color::from(73, 83, 102);
+        let color_unlocked = Color::from(243, 239, 239);
+        // println!("color: {:?}", color);
+
+        if color_locked.dis_2(&color) < color_unlocked.dis_2(&color) {
+            return 1 as u32;
+        }
+        else {
+            return 0 as u32;
+        }
+    }
 
     fn start_capture_only(&mut self) {
         fs::create_dir("captures");
@@ -447,8 +467,11 @@ impl YasScanner {
         info!("detected count: {}", count);
         info!("total row: {}", total_row);
         info!("last column: {}", last_row_col);
+        
+        // TODO: 新建channel发回锁指令
+        let (tx, rx) = mpsc::channel::<Option<(RawCaptureImage, u32, u32)>>();
+        let (tx2, rx2) = mpsc::channel::<u32>();
 
-        let (tx, rx) = mpsc::channel::<Option<(RawCaptureImage, u32)>>();
         let info_2 = self.info.clone();
         // v bvvmnvbm
         let is_verbose = self.config.verbose;
@@ -481,7 +504,7 @@ impl YasScanner {
             };
 
             for i in rx {
-                let (capture, star) = match i {
+                let (capture, star, curr_locked) = match i {
                     Some(v) => v,
                     None => break,
                 };
@@ -525,6 +548,69 @@ impl YasScanner {
                 let str_equip = String::new();
 
                 cnt += 1;
+                                
+                // TODO: 保留逻辑
+                // TODO: 判断现在有没有锁，发回锁指令
+                // if curr_locked == 1{
+                //     tx2.send(0).unwrap();
+                // }
+                // else if curr_locked == 1 {
+                //     tx2.send(1).unwrap();
+                // }
+                let mut need_lock = 0_u32;
+                if (!str_level.starts_with("+0")) ||
+                    (str_main_stat_name.starts_with("元素精通")) ||
+                    (str_main_stat_name.ends_with("伤害加成")) {
+                    need_lock |= 1;
+                }
+                
+                let stat_legal = |stat: &str| -> bool {
+                    if  (stat.starts_with("暴击")) || 
+                        (stat.starts_with("攻击力")) || 
+                        (stat.starts_with("防御力")) || 
+                        (stat.starts_with("生命值")) || 
+                        (stat.starts_with("元素精通")) || 
+                        (stat.starts_with("元素充能")) {
+                        true
+                    }
+                    else {
+                        false 
+                    }
+                };
+
+                let stat_valid = |stat: &str| -> u32 {
+                    if  (stat.starts_with("暴击")) || 
+                        (stat.starts_with("攻击力") && stat.ends_with("%")) || 
+                        (stat.starts_with("防御力") && stat.ends_with("%")) || 
+                        (stat.starts_with("生命值") && stat.ends_with("%")) || 
+                        (stat.starts_with("元素精通")) || 
+                        (stat.starts_with("元素充能") && stat.ends_with("%")) {
+                        1
+                    }
+                    else {
+                        0 
+                    }
+                };
+                if stat_legal(&str_sub_stat_4) {
+                    // 四词条
+                    let mut valid_num = 0_u32;
+                    valid_num += stat_valid(&str_sub_stat_1);
+                    valid_num += stat_valid(&str_sub_stat_2);
+                    valid_num += stat_valid(&str_sub_stat_3);
+                    valid_num += stat_valid(&str_sub_stat_4);
+                    if valid_num >= 3 {need_lock |=1}
+                }
+                else {
+                    // 三词条
+                    let mut valid_num = 0_u32;
+                    valid_num += stat_valid(&str_sub_stat_1);
+                    valid_num += stat_valid(&str_sub_stat_2);
+                    valid_num += stat_valid(&str_sub_stat_3);
+                    if valid_num >= 2 {need_lock |=1}
+                }
+                tx2.send(if curr_locked==1 {curr_locked-need_lock} else {need_lock-curr_locked}).unwrap();
+                // tx2.send(if curr_locked==1 {1} else {0}).unwrap();
+                
 
                 // let predict_time = now.elapsed().unwrap().as_millis();
                 // println!("predict time: {}ms", predict_time);                
@@ -587,7 +673,14 @@ impl YasScanner {
 
         self.move_to(0, 0);
         self.enigo.mouse_click(MouseButton::Left);
+
+        // let x = self.info.left + self.info.lock_x as i32;
+        // let y = self.info.top + self.info.lock_y as i32;
+        // self.enigo.mouse_move_to(x as i32, y as i32);
+        // self.enigo.mouse_click(MouseButton::Left);
+        // panic!("hhh");
         utils::sleep(1000);
+        
         // self.wait_until_switched();
         self.sample_initial_color();
 
@@ -609,13 +702,27 @@ impl YasScanner {
                     self.enigo.mouse_click(MouseButton::Left);
 
                     self.wait_until_switched();
-
+                    sleep(100);
                     let capture = self.capture_panel().unwrap();
                     let star = self.get_star();
+                    let lock_stat = self.get_lock();
+                    // capture.save(&format!("cao{}_{}.png", row, col));
+                    // sleep(1000);
                     if star < self.config.min_star {
                         break 'outer;
                     }
-                    tx.send(Some((capture, star))).unwrap();
+                    tx.send(Some((capture, star, lock_stat))).unwrap();
+                    let lock_op = rx2.recv().unwrap();
+                    info!("锁了吗，{}, op: {}", lock_stat, lock_op);
+                    if lock_op == 1 {
+                        let x = self.info.left + self.info.lock_x as i32;
+                        let y = self.info.top + self.info.lock_y as i32;
+                        self.enigo.mouse_move_to(x as i32, y as i32);
+                        self.enigo.mouse_click(MouseButton::Left);
+                    }
+                    sleep(40);
+                    self.move_to(row, col);
+                    //TODO: 等待发回的锁指令，然后进行锁
 
                     scanned_count += 1;
                 } // end 'col

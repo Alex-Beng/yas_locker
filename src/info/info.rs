@@ -44,6 +44,9 @@ pub struct ScanInfo {
     pub star_y: u32,
 
     pub pool_position: PixelRectBound,
+
+    pub lock_x: u32,
+    pub lock_y: u32
 }
 
 impl ScanInfo {

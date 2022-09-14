@@ -40,7 +40,10 @@ pub struct WindowInfo {
     pub star_x: f64,
     pub star_y: f64,
 
-    pub pool_pos: Rect
+    pub pool_pos: Rect,
+
+    pub lock_x: f64,
+    pub lock_y: f64
 }
 
 impl WindowInfo {
@@ -95,7 +98,9 @@ impl WindowInfo {
             flag_y: convert_y(self.flag_y) as u32,
             star_x: convert_x(self.star_x) as u32,
             star_y: convert_y(self.star_y) as u32,
-            pool_position: convert_rect(&self.pool_pos)
+            pool_position: convert_rect(&self.pool_pos),
+            lock_x: convert_x(self.lock_x) as u32,
+            lock_y: convert_y(self.lock_y) as u32
         }
     }
 }
@@ -135,7 +140,11 @@ pub const WINDOW_43_18: WindowInfo = WindowInfo {
     star_x: 3130.0,
     star_y: 200.0,
     
-    pool_pos: Rect(170.0, 2610.0 + 30.0, 900.0, 2610.0)
+    pool_pos: Rect(170.0, 2610.0 + 30.0, 900.0, 2610.0),
+
+    // I DON'T KNOW LOCATION WITHOUT 3440x1440 MONITOR
+    lock_x: 2333.0,
+    lock_y: 2333.0
 };
 
 pub const WINDOW_16_9: WindowInfo = WindowInfo {
@@ -173,7 +182,10 @@ pub const WINDOW_16_9: WindowInfo = WindowInfo {
     star_x: 1469.4,
     star_y: 123.9,
     
-    pool_pos: Rect(118.2, 1144.7 + 15.0, 510.3, 1144.7)
+    pool_pos: Rect(118.2, 1144.7 + 15.0, 510.3, 1144.7),
+
+    lock_x: 1476.83,
+    lock_y: 356.66
 };
 
 pub const WINDOW_8_5: WindowInfo = WindowInfo {
@@ -202,7 +214,10 @@ pub const WINDOW_8_5: WindowInfo = WindowInfo {
     flag_y: 82.1,
     star_x: 1321.3,
     star_y: 111.3,
-    pool_pos: Rect(103.6, 1025.8 + 15.0, 460.7, 1028.5)
+    pool_pos: Rect(103.6, 1025.8 + 15.0, 460.7, 1028.5),
+    // NOT EXACT
+    lock_x: 1306.28,
+    lock_y: 322.28
 };
 
 pub const WINDOW_4_3: WindowInfo = WindowInfo {
@@ -231,5 +246,8 @@ pub const WINDOW_4_3: WindowInfo = WindowInfo {
     flag_y: 72.1,
     star_x: 1175.4,
     star_y: 95.8,
-    pool_pos: Rect(93.2, 912.7 + 15.0, 412.4, 912.7)
+    pool_pos: Rect(93.2, 912.7 + 15.0, 412.4, 912.7),
+    // NOT EXACT
+    lock_x: 1164.0,
+    lock_y: 296.0
 };
